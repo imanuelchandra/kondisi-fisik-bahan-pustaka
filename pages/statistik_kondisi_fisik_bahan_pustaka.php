@@ -1,0 +1,202 @@
+<?php
+
+/**
+ *
+ * Copyright (C) 2007,2008  Arie Nugraha (dicarve@yahoo.com)
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ */
+
+/* Item List */
+
+defined('INDEX_AUTH') OR die('Direct access not allowed!');
+
+//require '../../../sysconfig.inc.php';
+require LIB.'ip_based_access.inc.php';
+do_checkIP('smc');
+do_checkIP('smc-reporting');
+// start the session
+require SB.'admin/default/session.inc.php';
+require SB.'admin/default/session_check.inc.php';
+// privileges checking
+$can_read = utility::havePrivilege('reporting', 'r');
+$can_write = utility::havePrivilege('reporting', 'w');
+
+if (!$can_read) {
+    die('<div class="errorBox">'.__('You don\'t have enough privileges to access this area!').'</div>');
+}
+
+require SIMBIO.'simbio_GUI/table/simbio_table.inc.php';
+require SIMBIO.'simbio_GUI/paging/simbio_paging.inc.php';
+require SIMBIO.'simbio_GUI/form_maker/simbio_form_element.inc.php';
+require SIMBIO.'simbio_DB/datagrid/simbio_dbgrid.inc.php';
+require MDLBS.'reporting/report_dbgrid.inc.php';
+
+function httpQuery($query = [])
+{
+    return http_build_query(array_unique(array_merge($_GET, $query)));
+}
+
+$page_title = 'Laporan Statistik Kondisi Fisik Bahan Pustaka';
+$reportView = false;
+$num_recs_show = 20;
+if (isset($_GET['reportView'])) {
+    $reportView = true;
+}
+
+if (!$reportView) {
+?>
+    <!-- filter -->
+    <div class="per_title">
+        <h2><?php echo __('Laporan Statistik Kondisi Fisik Bahan Pustaka'); ?></h2>
+    </div>
+    <div class="infoBox">
+        <?php echo __('Report Filter'); ?>
+    </div>
+    <div class="sub_section">
+        <form method="get" action="<?php echo $_SERVER['PHP_SELF']; ?>" target="reportView" class="form-inline">
+            <input type="hidden" name="id" value="<?= $_GET['id']??'' ?>"/>
+            <input type="hidden" name="mod" value="<?= $_GET['mod']??'' ?>"/>
+      
+                        <label><?php echo __('Tanggal Survey'); ?></label>
+                        <div id="range">
+                            <input type="text" name="tglMulaiSurvey">
+                            <span><?= __('to') ?></span>
+                            <input type="text" name="tglSelesaiSurvey">
+                        </div>
+
+            <input type="submit" name="applyFilter" value="<?php echo __('Apply Filter'); ?>" class="btn btn-primary" />
+            <input type="hidden" name="reportView" value="true" />
+        </form>
+    </div>
+    <script type="text/javascript">hideRows('filterForm', 1);</script>
+    <!-- filter end -->
+    <iframe name="reportView" id="reportView" src="<?php echo $_SERVER['PHP_SELF'].'?' .httpQuery(['reportView' => 'true']); ?>" frameborder="0" style="width: 100%; height: 500px;"></iframe>
+    <script>
+        $(document).ready(function(){
+            const elem = document.getElementById('range');
+            const dateRangePicker = new DateRangePicker(elem, {
+                language: '<?= substr($sysconf['default_lang'], 0,2) ?>',
+                format: 'yyyy-mm-dd',
+            });
+        })
+    </script>
+<?php
+} else {
+    ob_start();
+	$xls_rc = 0;
+	$xls_cc = 0;
+    $row_class = 'alterCellPrinted';
+
+     
+    if (isset($_GET['tglMulaiSurvey']) AND !empty($_GET['tglMulaiSurvey']) && isset($_GET['tglSelesaiSurvey']) AND !empty($_GET['tglSelesaiSurvey'])) {
+        $surveyDateStart = $dbs->escape_string(trim($_GET['tglMulaiSurvey']));
+        $surveyDateEnd = $dbs->escape_string(trim($_GET['tglMulaiSurvey']));
+        $criteria .= ' AND (DATE(updated_at) >= \'' . $surveyDateStart . '\' AND DATE(updated_at) <= \'' . $surveyDateEnd . '\')';
+    }
+
+    $output = '<table border="1">';
+    // // header
+    $output .= '<thead><tr>
+        <th>'.__('Kondisi Fisik Bahan Pustaka').'</th>
+        <th>'.__('Eksemplar').'</th>
+        </tr></thead>';
+	$xlsrows = array($xls_rc => array(__('Kondisi Fisik Bahan Pustaka'),__('Eksemplar')));
+	$xls_rc++;
+    
+     $output .= '<tbody>';
+     $itemConditions_q = $dbs->query("
+                                SELECT 
+                                SUM(CASE WHEN physical_condition = 1 THEN 1 ELSE 0 END) AS kondisi_baik, 
+                                SUM(CASE WHEN physical_condition = 2 THEN 1 ELSE 0 END) AS kondisi_rusak_ringan,
+                                SUM(CASE WHEN physical_condition = 3 THEN 1 ELSE 0 END) AS kondisi_rusak_berat
+                                FROM item_conditions 
+                                WHERE 
+                                id IS NOT NULL
+                                $criteria;
+                                ");
+
+      $itemConditions_d = $itemConditions_q->fetch_array();
+
+      $output .= '<tr>';
+            
+      $output .=  '<td>Kondisi Baik</td>';
+           
+      $output .=  '<td>'.$itemConditions_d['kondisi_baik'].'</td>';
+
+      //$xlsrows[$xls_rc] = array($lokasiRak_d[0],' ',' ',$jumlah_item_d[0]);
+	  //$xls_rc++;
+
+      $output .= '</tr>';
+
+
+      $output .= '<tr>';
+            
+      $output .=  '<td>Kondisi Rusak Ringan</td>';
+           
+      $output .=  '<td>'.$itemConditions_d['kondisi_rusak_ringan'].'</td>';
+
+      //$xlsrows[$xls_rc] = array($lokasiRak_d[0],' ',' ',$jumlah_item_d[0]);
+	  //$xls_rc++;
+
+      $output .= '</tr>';
+
+
+      $output .= '<tr>';
+            
+      $output .=  '<td>Kondisi Rusak Berat</td>';
+           
+      $output .=  '<td>'.$itemConditions_d['kondisi_rusak_berat'].'</td>';
+
+      //$xlsrows[$xls_rc] = array($lokasiRak_d[0],' ',' ',$jumlah_item_d[0]);
+	  //$xls_rc++;
+
+      $output .= '</tr>';
+     
+    
+   $output .= '<tr class="table-warning">';
+   $output .=  '<th>Total :</th>';
+    
+   $total_q = $dbs->query("
+                            SELECT COUNT(physical_condition) AS total
+                            FROM item_conditions
+                            WHERE id IS NOT NULL $criteria
+                        ");
+   $total_d = $total_q->fetch_array();
+   $output .=  '<th>'.$total_d['total'].'</th>';
+
+//    $xlsrows[$xls_rc] = array(' ',' ','Total ',$total_d[0]);
+//    $xls_rc++;
+
+   $output .= '</tr>';
+
+   $output .= '</tbody>';
+   $output .= '</table>';
+
+    // print out
+    echo '<div class="mb-2">'.__('Statistik Kelengkapan Bahan Pustaka').' 
+    <a href="#" class="s-btn btn btn-default printReport" onclick="window.print()">'.__('Print Current Page').'</a>
+    <a href="' . AWB . 'modules/reporting/xlsoutput.php" class="s-btn btn btn-default">'.__('Export to spreadsheet format').'</a></div>'."\n";
+    echo $output;
+
+	unset($_SESSION['xlsquery']); 
+	$_SESSION['xlsdata'] = $xlsrows;
+	$_SESSION['tblout'] = "recap_list";
+	// echo '<p><a href="../xlsoutput.php" class="s-btn btn btn-default">'.__('Export to spreadsheet format').'</a></p>';
+    $content = ob_get_clean();
+    // include the page template
+    require SB.'/admin/'.$sysconf['admin_template']['dir'].'/printed_page_tpl.php';
+}
