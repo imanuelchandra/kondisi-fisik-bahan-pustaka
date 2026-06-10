@@ -29,8 +29,8 @@ class AddColumnForeignKeyItemConditions extends Migration
     function down()
     {
 
-        //  Schema::table('item', function (Blueprint $table) {
-        //     $table->drop('item_condition_id');    // Drops the column
-        // });
+         Schema::table('item', function (Blueprint $table) {
+            $table->drop('item_condition_id');    // Drops the column
+        });
     }
 }
