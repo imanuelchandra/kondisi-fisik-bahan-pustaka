@@ -19,6 +19,6 @@ class CreateItemConditions extends Migration
 
     function down()
     {
-         Schema::drop('item_conditions');
+         //Schema::drop('item_conditions');
     }
 }
