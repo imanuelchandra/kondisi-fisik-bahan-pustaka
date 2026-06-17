@@ -164,8 +164,30 @@ if (isset($_POST['saveData']) AND $can_read AND $can_write) {
                 $updateItemConditions = $sql_op->update('item_conditions', $dataItemConditions, "id=".$updateRecordConditionID);
             }
 
-            
+           
             $update = $sql_op->update('item', $data, "item_id=".$updateRecordID);
+
+
+             $check_null_q = $dbs->query('SELECT * 
+                                    FROM item_materials
+                                    WHERE property_stamp IS NULL 
+                                    AND inventory_stamp IS NULL 
+                                    AND barcode IS NULL
+                                    AND book_pocket IS NULL 
+                                    AND book_card IS NULL
+                                    AND catalog_card IS NULL 
+                                    AND book_label IS NULL
+                                        AND date_due_slip IS NULL 
+                                        AND id='.$updateRecordMaterialID);
+
+
+
+             if($check_null_q->num_rows >= 1){
+                 $dataIdItemMaterial['item_material_id'] = NULL;
+                 $dbs->query('UPDATE item SET item_material_id = NULL WHERE item_id ='.$updateRecordID);
+                 $sql_op->delete('item_materials', "id=$updateRecordMaterialID");
+                // $updateIdItemMaterial = $sql_op->update('item', $dataIdItemMaterial, "item_id=".$updateRecordID);
+             }
 
             // if ($updateRecordMaterialID == 0) {
             //     $insertItemMaterials = $sql_op->insert('item_materials', $dataItemMaterial);
@@ -229,21 +251,28 @@ if (isset($_POST['saveData']) AND $can_read AND $can_write) {
     foreach ($_POST['itemID'] as $itemID) {
         $itemID = (integer)$itemID;
         // check if the item still on loan
-        $loan_q = $dbs->query('SELECT i.item_code, b.title, COUNT(l.loan_id) FROM item AS i
+        $loan_q = $dbs->query('SELECT i.item_code, i.item_material_id, b.title, COUNT(l.loan_id) FROM item AS i
             LEFT JOIN biblio AS b ON i.biblio_id=b.biblio_id
             LEFT JOIN loan AS l ON (i.item_code=l.item_code AND l.is_lent=1 AND l.is_return=0)
             WHERE i.item_id='.$itemID.' GROUP BY i.item_code');
         $loan_d = $loan_q->fetch_row();
         // if there is no loan
-        if ($loan_d[2] < 1) {
+        if ($loan_d[3] < 1) {
+            if (!$sql_op->delete('item_materials', 'id='.$loan_d[1])) {
+                $error_num++;
+            } else {
+                // write log
+                utility::writeLogs($dbs, 'staff', $_SESSION['uid'], 'bibliography', $_SESSION['realname'].' DELETE item data ('.$loan_d[0].') with title ('.$loan_d[2].')', 'Item', 'Delete');
+            }
+
             if (!$sql_op->delete('item', 'item_id='.$itemID)) {
                 $error_num++;
             } else {
                 // write log
-                utility::writeLogs($dbs, 'staff', $_SESSION['uid'], 'bibliography', $_SESSION['realname'].' DELETE item data ('.$loan_d[0].') with title ('.$loan_d[1].')', 'Item', 'Delete');
+                utility::writeLogs($dbs, 'staff', $_SESSION['uid'], 'bibliography', $_SESSION['realname'].' DELETE item data ('.$loan_d[0].') with title ('.$loan_d[2].')', 'Item', 'Delete');
             }
         } else {
-            $still_on_loan[] = $loan_d[0].' - '.$loan_d[1];
+            $still_on_loan[] = $loan_d[0].' - '.$loan_d[2];
             $error_num++;
         }
     }
