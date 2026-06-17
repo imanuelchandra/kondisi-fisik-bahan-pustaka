@@ -187,7 +187,7 @@ if (!$reportView) {
    $output .= '</table>';
 
     // print out
-    echo '<div class="mb-2">'.__('Statistik Kelengkapan Bahan Pustaka').' 
+    echo '<div class="mb-2">'.__('Statistik Kondisi Fisik Bahan Pustaka').' 
     <a href="#" class="s-btn btn btn-default printReport" onclick="window.print()">'.__('Print Current Page').'</a>
     <a href="' . AWB . 'modules/reporting/xlsoutput.php" class="s-btn btn btn-default">'.__('Export to spreadsheet format').'</a></div>'."\n";
     echo $output;
